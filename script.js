@@ -25,6 +25,7 @@ const db = getFirestore(app);
 ========================================= */
 const $ = (s) => document.querySelector(s);
 let allClients = [];
+let allProfessionals = [];
 let reportCache = [];
 let reportsChartInstance = null;
 
@@ -42,7 +43,7 @@ const SERVICES_LIST = [
 ];
 const PAYMENT_METHODS = ["PIX", "Dinheiro", "Cartão de Crédito", "Cartão de Débito"];
 
-const BOOKING_URL = "https://barbearia-vitrine.vercel.app/";
+const BOOKING_URL = "http://.127.0.0.1:5500/index.html";
 
 const mainContents = document.querySelectorAll("main");
 const tabBtns = document.querySelectorAll(".tab-btn");
@@ -160,6 +161,147 @@ const showTab = (tabId) => {
     tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === tabId));
 };
 tabBtns.forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+/* =========================================
+   Profissionais
+========================================= */
+const professionalForm = $("#professionalForm");
+const professionalTableBody = $("#professionalTableBody");
+const professionalNameInput = $("#professionalName");
+
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+}[char]));
+
+const updateProfessionalSelects = () => {
+    const agendaValue = profissionalSelect.value;
+    const reportValue = relProf.value;
+    const activeProfessionals = allProfessionals.filter((professional) => professional.status === "ativo");
+    const createOptions = (professionals) => '<option value="">Selecione um profissional</option>' +
+        professionals.map((professional) =>
+            `<option value="${escapeHtml(professional.name)}">${escapeHtml(professional.name)}</option>`
+        ).join("");
+
+    profissionalSelect.innerHTML = createOptions(activeProfessionals);
+    relProf.innerHTML = createOptions(allProfessionals);
+    if (activeProfessionals.some((professional) => professional.name === agendaValue)) {
+        profissionalSelect.value = agendaValue;
+    } else if (activeProfessionals.length) {
+        profissionalSelect.value = activeProfessionals[0].name;
+    }
+    if (allProfessionals.some((professional) => professional.name === reportValue)) {
+        relProf.value = reportValue;
+    } else if (allProfessionals.length) {
+        relProf.value = allProfessionals[0].name;
+    }
+};
+
+const renderProfessionals = () => {
+    professionalTableBody.innerHTML = allProfessionals.map((professional) => {
+        const isActive = professional.status === "ativo";
+        return `<tr data-professional-id="${escapeHtml(professional.id)}">
+            <td data-label="Nome"><strong>${escapeHtml(professional.name)}</strong></td>
+            <td data-label="Telefone">${escapeHtml(professional.phone || "—")}</td>
+            <td data-label="Status"><span class="badge ${isActive ? "ativo" : "inativo"}">${isActive ? "Ativo" : "Inativo"}</span></td>
+            <td data-label="Ações"><div class="actions">
+                <button class="btn btn-sm btn-edit" data-action="edit-professional" title="Editar" aria-label="Editar profissional"><i class="bx bx-edit"></i></button>
+                <button class="btn btn-sm ${isActive ? "btn-warning" : "btn-success"}" data-action="toggle-professional" title="${isActive ? "Desativar" : "Ativar"}" aria-label="${isActive ? "Desativar" : "Ativar"} profissional"><i class="bx ${isActive ? "bx-pause" : "bx-play"}"></i></button>
+            </div></td>
+        </tr>`;
+    }).join("") || '<tr><td colspan="4" class="loading-row">Nenhum profissional cadastrado.</td></tr>';
+};
+
+professionalForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = capitalizeName(professionalNameInput.value);
+    if (!name) return showNotification("Nome é obrigatório.", "error");
+    if (allProfessionals.some((professional) => normalize(professional.name) === normalize(name))) {
+        return showNotification("Já existe um profissional com esse nome.", "error");
+    }
+
+    try {
+        await addDoc(collection(db, "profissionais"), {
+            name,
+            phone: formatPhoneNumber($("#professionalPhone").value),
+            status: "ativo",
+            createdAt: serverTimestamp(),
+        });
+        professionalForm.reset();
+        showNotification("Profissional cadastrado!");
+    } catch (error) {
+        console.error("[profissionais:create]", error);
+        showNotification("Erro ao cadastrar profissional.", "error");
+    }
+});
+
+professionalTableBody.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const professional = allProfessionals.find((item) => item.id === button.closest("tr").dataset.professionalId);
+    if (!professional) return;
+
+    if (button.dataset.action === "edit-professional") {
+        mainModal.show({
+            title: "Editar Profissional",
+            body: `<div class="form-grid">
+                <div class="field"><label for="editProfessionalName">Nome</label><input id="editProfessionalName" value="${escapeHtml(professional.name)}" required></div>
+                <div class="field"><label for="editProfessionalPhone">Telefone</label><input id="editProfessionalPhone" type="tel" maxlength="15" value="${escapeHtml(professional.phone || "")}"></div>
+            </div>`,
+            buttons: [
+                { text: "Cancelar", class: "btn-light" },
+                {
+                    text: "Salvar", class: "btn-primary",
+                    onClick: async () => {
+                        const name = capitalizeName($("#editProfessionalName").value);
+                        if (!name) {
+                            showNotification("Nome é obrigatório.", "error");
+                            return false;
+                        }
+                        if (allProfessionals.some((item) => item.id !== professional.id && normalize(item.name) === normalize(name))) {
+                            showNotification("Já existe um profissional com esse nome.", "error");
+                            return false;
+                        }
+                        try {
+                            await updateDoc(doc(db, "profissionais", professional.id), {
+                                name,
+                                phone: formatPhoneNumber($("#editProfessionalPhone").value),
+                            });
+                            showNotification("Profissional atualizado!");
+                        } catch (error) {
+                            console.error("[profissionais:update]", error);
+                            showNotification("Erro ao atualizar profissional.", "error");
+                            return false;
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
+    if (button.dataset.action === "toggle-professional") {
+        const nextStatus = professional.status === "ativo" ? "inativo" : "ativo";
+        mainModal.show({
+            title: `${nextStatus === "ativo" ? "Ativar" : "Desativar"} Profissional`,
+            body: `<p>Deseja ${nextStatus === "ativo" ? "ativar" : "desativar"} <strong>${escapeHtml(professional.name)}</strong>?</p>`,
+            buttons: [
+                { text: "Cancelar", class: "btn-light" },
+                {
+                    text: "Confirmar", class: "btn-primary",
+                    onClick: async () => {
+                        try {
+                            await updateDoc(doc(db, "profissionais", professional.id), { status: nextStatus });
+                            showNotification("Status do profissional atualizado!");
+                        } catch (error) {
+                            console.error("[profissionais:status]", error);
+                            showNotification("Erro ao alterar status.", "error");
+                            return false;
+                        }
+                    },
+                },
+            ],
+        });
+    }
+});
 
 /* =========================================
    Clientes
@@ -723,9 +865,7 @@ const init = async () => {
     relDe.value = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
     relAte.value = hoje;
 
-    const profOptions = '<option value="barbeiro">Barbeiro</option>';
-    profissionalSelect.innerHTML = profOptions;
-    relProf.innerHTML = profOptions;
+    updateProfessionalSelects();
 
     horaFiltro.innerHTML += HOURS.map((h) => `<option>${h}</option>`).join("");
 
@@ -736,6 +876,19 @@ const init = async () => {
         query(collection(db, "clientes"), orderBy("name")),
         (snap) => { allClients = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })); applyClientFilters(); updateClientKPIs(); },
         (error) => console.error("Erro no listener de clientes:", error)
+    );
+    onSnapshot(
+        query(collection(db, "profissionais"), orderBy("name")),
+        (snap) => {
+            allProfessionals = snap.docs.map((professionalDoc) => ({ id: professionalDoc.id, ...professionalDoc.data() }));
+            renderProfessionals();
+            updateProfessionalSelects();
+            buscarAgenda();
+        },
+        (error) => {
+            console.error("Erro no listener de profissionais:", error);
+            showNotification("Não foi possível carregar os profissionais.", "error");
+        }
     );
     onSnapshot(
         query(collection(db, "pagamentos"), orderBy("date", "desc")),

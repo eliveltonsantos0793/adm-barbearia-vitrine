@@ -29,6 +29,8 @@
                     Relatórios</button>
                 <button type="button" class="tab-btn" data-tab="clientes"><i class="bx bx-user-pin"></i>
                     Clientes</button>
+                <button type="button" class="tab-btn" data-tab="profissionais"><i class="bx bx-cut"></i>
+                    Profissionais</button>
             </div>
 
             <!-- Botão sair removido porque não há mais login -->
@@ -143,6 +145,52 @@
                     </div>
                     <div class="payments-total">Total do mês: <span id="monthlyTotal">R$ 0,00</span></div>
                 </div>
+            </div>
+        </div>
+    </main>
+
+    <main id="profissionaisMain">
+        <div class="card">
+            <div class="card-header">
+                <h3>Cadastro de Profissionais</h3>
+            </div>
+            <div class="card-body">
+                <form id="professionalForm" class="form-grid">
+                    <div class="form-row">
+                        <div class="field">
+                            <label for="professionalName">Nome *</label>
+                            <input type="text" id="professionalName" required placeholder="Nome do barbeiro">
+                        </div>
+                        <div class="field">
+                            <label for="professionalPhone">Telefone</label>
+                            <input type="tel" id="professionalPhone" maxlength="15" placeholder="(XX) XXXXX-XXXX">
+                        </div>
+                        <div class="field">
+                            <label>&nbsp;</label>
+                            <button type="submit" class="btn btn-primary"><i class="bx bx-user-plus"></i>
+                                Cadastrar profissional</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:24px;">
+            <div class="card-header">
+                <h3>Profissionais cadastrados</h3>
+            </div>
+            <div class="card-body-table">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Telefone</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="professionalTableBody"></tbody>
+                </table>
             </div>
         </div>
     </main>
